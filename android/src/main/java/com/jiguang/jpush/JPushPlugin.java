@@ -347,167 +347,168 @@ public class JPushPlugin implements FlutterPlugin, MethodCallHandler {
         } else {
             result.success(false);
         }
+    }
 
-        /// 检查当前应用的通知开关是否开启
-        private void isNotificationEnabled (MethodCall call, Result result){
-            Log.d(TAG, "isNotificationEnabled: ");
-            int isEnabled = JPushInterface.isNotificationEnabled(context);
-            //1表示开启，0表示关闭，-1表示检测失败
-            HashMap<String, Object> map = new HashMap();
-            map.put("isEnabled", isEnabled == 1 ? true : false);
+    /// 检查当前应用的通知开关是否开启
+    private void isNotificationEnabled(MethodCall call, Result result) {
+        Log.d(TAG, "isNotificationEnabled: ");
+        int isEnabled = JPushInterface.isNotificationEnabled(context);
+        //1表示开启，0表示关闭，-1表示检测失败
+        HashMap<String, Object> map = new HashMap();
+        map.put("isEnabled", isEnabled == 1 ? true : false);
 
-            runMainThread(map, result, null);
+        runMainThread(map, result, null);
+    }
+
+    private void openSettingsForNotification(MethodCall call, Result result) {
+        Log.d(TAG, "openSettingsForNotification: ");
+
+        JPushInterface.goToAppNotificationSettings(context);
+
+    }
+
+    /**
+     * 接收自定义消息,通知,通知点击事件等事件的广播
+     * 文档链接:http://docs.jiguang.cn/client/android_api/
+     */
+    public static class JPushReceiver extends BroadcastReceiver {
+
+        private static final List<String> IGNORED_EXTRAS_KEYS = Arrays.asList("cn.jpush.android.TITLE",
+                "cn.jpush.android.MESSAGE", "cn.jpush.android.APPKEY", "cn.jpush.android.NOTIFICATION_CONTENT_TITLE", "key_show_entity", "platform");
+
+        public JPushReceiver() {
         }
 
-        private void openSettingsForNotification (MethodCall call, Result result){
-            Log.d(TAG, "openSettingsForNotification: ");
 
-            JPushInterface.goToAppNotificationSettings(context);
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
 
+            if (action.equals(JPushInterface.ACTION_REGISTRATION_ID)) {
+                String rId = intent.getStringExtra(JPushInterface.EXTRA_REGISTRATION_ID);
+                Log.d("JPushPlugin", "on get registration");
+                JPushPlugin.transmitReceiveRegistrationId(rId);
+
+            } else if (action.equals(JPushInterface.ACTION_MESSAGE_RECEIVED)) {
+                handlingMessageReceive(intent);
+            } else if (action.equals(JPushInterface.ACTION_NOTIFICATION_RECEIVED)) {
+                handlingNotificationReceive(context, intent);
+            } else if (action.equals(JPushInterface.ACTION_NOTIFICATION_OPENED)) {
+                handlingNotificationOpen(context, intent);
+            }
         }
 
-        /**
-         * 接收自定义消息,通知,通知点击事件等事件的广播
-         * 文档链接:http://docs.jiguang.cn/client/android_api/
-         */
-        public static class JPushReceiver extends BroadcastReceiver {
+        private void handlingMessageReceive(Intent intent) {
+            Log.d(TAG, "handlingMessageReceive " + intent.getAction());
 
-            private static final List<String> IGNORED_EXTRAS_KEYS = Arrays.asList("cn.jpush.android.TITLE",
-                    "cn.jpush.android.MESSAGE", "cn.jpush.android.APPKEY", "cn.jpush.android.NOTIFICATION_CONTENT_TITLE", "key_show_entity", "platform");
+            String msg = intent.getStringExtra(JPushInterface.EXTRA_MESSAGE);
+            Map<String, Object> extras = getNotificationExtras(intent);
+            JPushPlugin.transmitMessageReceive(msg, extras);
+        }
 
-            public JPushReceiver() {
+        private void handlingNotificationOpen(Context context, Intent intent) {
+            Log.d(TAG, "handlingNotificationOpen " + intent.getAction());
+
+            String title = intent.getStringExtra(JPushInterface.EXTRA_NOTIFICATION_TITLE);
+            String alert = intent.getStringExtra(JPushInterface.EXTRA_ALERT);
+            Map<String, Object> extras = getNotificationExtras(intent);
+            JPushPlugin.transmitNotificationOpen(title, alert, extras);
+
+            Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+            if (launch != null) {
+                launch.addCategory(Intent.CATEGORY_LAUNCHER);
+                launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                context.startActivity(launch);
             }
+        }
 
+        private void handlingNotificationReceive(Context context, Intent intent) {
+            Log.d(TAG, "handlingNotificationReceive " + intent.getAction());
 
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                String action = intent.getAction();
+            String title = intent.getStringExtra(JPushInterface.EXTRA_NOTIFICATION_TITLE);
+            String alert = intent.getStringExtra(JPushInterface.EXTRA_ALERT);
+            Map<String, Object> extras = getNotificationExtras(intent);
+            JPushPlugin.transmitNotificationReceive(title, alert, extras);
+        }
 
-                if (action.equals(JPushInterface.ACTION_REGISTRATION_ID)) {
-                    String rId = intent.getStringExtra(JPushInterface.EXTRA_REGISTRATION_ID);
-                    Log.d("JPushPlugin", "on get registration");
-                    JPushPlugin.transmitReceiveRegistrationId(rId);
+        private Map<String, Object> getNotificationExtras(Intent intent) {
+            Log.d(TAG, "");
 
-                } else if (action.equals(JPushInterface.ACTION_MESSAGE_RECEIVED)) {
-                    handlingMessageReceive(intent);
-                } else if (action.equals(JPushInterface.ACTION_NOTIFICATION_RECEIVED)) {
-                    handlingNotificationReceive(context, intent);
-                } else if (action.equals(JPushInterface.ACTION_NOTIFICATION_OPENED)) {
-                    handlingNotificationOpen(context, intent);
-                }
-            }
-
-            private void handlingMessageReceive(Intent intent) {
-                Log.d(TAG, "handlingMessageReceive " + intent.getAction());
-
-                String msg = intent.getStringExtra(JPushInterface.EXTRA_MESSAGE);
-                Map<String, Object> extras = getNotificationExtras(intent);
-                JPushPlugin.transmitMessageReceive(msg, extras);
-            }
-
-            private void handlingNotificationOpen(Context context, Intent intent) {
-                Log.d(TAG, "handlingNotificationOpen " + intent.getAction());
-
-                String title = intent.getStringExtra(JPushInterface.EXTRA_NOTIFICATION_TITLE);
-                String alert = intent.getStringExtra(JPushInterface.EXTRA_ALERT);
-                Map<String, Object> extras = getNotificationExtras(intent);
-                JPushPlugin.transmitNotificationOpen(title, alert, extras);
-
-                Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
-                if (launch != null) {
-                    launch.addCategory(Intent.CATEGORY_LAUNCHER);
-                    launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                    context.startActivity(launch);
-                }
-            }
-
-            private void handlingNotificationReceive(Context context, Intent intent) {
-                Log.d(TAG, "handlingNotificationReceive " + intent.getAction());
-
-                String title = intent.getStringExtra(JPushInterface.EXTRA_NOTIFICATION_TITLE);
-                String alert = intent.getStringExtra(JPushInterface.EXTRA_ALERT);
-                Map<String, Object> extras = getNotificationExtras(intent);
-                JPushPlugin.transmitNotificationReceive(title, alert, extras);
-            }
-
-            private Map<String, Object> getNotificationExtras(Intent intent) {
-                Log.d(TAG, "");
-
-                Map<String, Object> extrasMap = new HashMap<String, Object>();
-                for (String key : intent.getExtras().keySet()) {
-                    if (!IGNORED_EXTRAS_KEYS.contains(key)) {
-                        if (key.equals(JPushInterface.EXTRA_NOTIFICATION_ID)) {
-                            extrasMap.put(key, intent.getIntExtra(key, 0));
-                        } else {
-                            extrasMap.put(key, intent.getStringExtra(key));
-                        }
+            Map<String, Object> extrasMap = new HashMap<String, Object>();
+            for (String key : intent.getExtras().keySet()) {
+                if (!IGNORED_EXTRAS_KEYS.contains(key)) {
+                    if (key.equals(JPushInterface.EXTRA_NOTIFICATION_ID)) {
+                        extrasMap.put(key, intent.getIntExtra(key, 0));
+                    } else {
+                        extrasMap.put(key, intent.getStringExtra(key));
                     }
                 }
-                return extrasMap;
             }
+            return extrasMap;
+        }
+    }
+
+
+    static void transmitMessageReceive(String message, Map<String, Object> extras) {
+        Log.d(TAG, "transmitMessageReceive " + "message=" + message + "extras=" + extras);
+
+        if (instance == null) {
+            return;
+        }
+        Map<String, Object> msg = new HashMap<>();
+        msg.put("message", message);
+        msg.put("extras", extras);
+
+        JPushPlugin.instance.channel.invokeMethod("onReceiveMessage", msg);
+    }
+
+    static void transmitNotificationOpen(String title, String alert, Map<String, Object> extras) {
+        Log.d(TAG, "transmitNotificationOpen " + "title=" + title + "alert=" + alert + "extras=" + extras);
+
+        Map<String, Object> notification = new HashMap<>();
+        notification.put("title", title);
+        notification.put("alert", alert);
+        notification.put("extras", extras);
+        JPushPlugin.openNotificationCache.add(notification);
+
+        if (instance == null) {
+            Log.d("JPushPlugin", "the instance is null");
+            return;
         }
 
-
-        static void transmitMessageReceive (String message, Map < String, Object > extras){
-            Log.d(TAG, "transmitMessageReceive " + "message=" + message + "extras=" + extras);
-
-            if (instance == null) {
-                return;
-            }
-            Map<String, Object> msg = new HashMap<>();
-            msg.put("message", message);
-            msg.put("extras", extras);
-
-            JPushPlugin.instance.channel.invokeMethod("onReceiveMessage", msg);
-        }
-
-        static void transmitNotificationOpen (String title, String alert, Map < String, Object > extras){
-            Log.d(TAG, "transmitNotificationOpen " + "title=" + title + "alert=" + alert + "extras=" + extras);
-
-            Map<String, Object> notification = new HashMap<>();
-            notification.put("title", title);
-            notification.put("alert", alert);
-            notification.put("extras", extras);
-            JPushPlugin.openNotificationCache.add(notification);
-
-            if (instance == null) {
-                Log.d("JPushPlugin", "the instance is null");
-                return;
-            }
-
-            if (instance.dartIsReady) {
-                Log.d("JPushPlugin", "instance.dartIsReady is true");
-                JPushPlugin.instance.channel.invokeMethod("onOpenNotification", notification);
-                JPushPlugin.openNotificationCache.remove(notification);
-            }
-
-        }
-
-        static void transmitNotificationReceive (String title, String alert, Map < String, Object > extras){
-            Log.d(TAG, "transmitNotificationReceive " + "title=" + title + "alert=" + alert + "extras=" + extras);
-
-            if (instance == null) {
-                return;
-            }
-
-            Map<String, Object> notification = new HashMap<>();
-            notification.put("title", title);
-            notification.put("alert", alert);
-            notification.put("extras", extras);
-            JPushPlugin.instance.channel.invokeMethod("onReceiveNotification", notification);
-        }
-
-        static void transmitReceiveRegistrationId (String rId){
-            Log.d(TAG, "transmitReceiveRegistrationId： " + rId);
-
-            if (instance == null) {
-                return;
-            }
-
-            JPushPlugin.instance.jpushDidinit = true;
-
-            // try to clean getRid cache
-            JPushPlugin.instance.scheduleCache();
+        if (instance.dartIsReady) {
+            Log.d("JPushPlugin", "instance.dartIsReady is true");
+            JPushPlugin.instance.channel.invokeMethod("onOpenNotification", notification);
+            JPushPlugin.openNotificationCache.remove(notification);
         }
 
     }
+
+    static void transmitNotificationReceive(String title, String alert, Map<String, Object> extras) {
+        Log.d(TAG, "transmitNotificationReceive " + "title=" + title + "alert=" + alert + "extras=" + extras);
+
+        if (instance == null) {
+            return;
+        }
+
+        Map<String, Object> notification = new HashMap<>();
+        notification.put("title", title);
+        notification.put("alert", alert);
+        notification.put("extras", extras);
+        JPushPlugin.instance.channel.invokeMethod("onReceiveNotification", notification);
+    }
+
+    static void transmitReceiveRegistrationId(String rId) {
+        Log.d(TAG, "transmitReceiveRegistrationId： " + rId);
+
+        if (instance == null) {
+            return;
+        }
+
+        JPushPlugin.instance.jpushDidinit = true;
+
+        // try to clean getRid cache
+        JPushPlugin.instance.scheduleCache();
+    }
+
+}

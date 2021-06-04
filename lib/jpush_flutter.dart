@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:platform/platform.dart';
 
-typedef Future<dynamic> EventHandler(Map<String, dynamic> event);
+typedef EventHandler = FutureOr<Object?> Function(Map<String, dynamic> event);
 
 class JPush {
   static const String flutter_log = "| JPUSH | Flutter | ";
@@ -18,8 +18,8 @@ class JPush {
       : _channel = channel,
         _platform = platform;
 
-  static final JPush _instance =
-      new JPush.private(const MethodChannel('jpush'), const LocalPlatform());
+  static late final JPush _instance =
+      JPush.private(const MethodChannel('jpush'), const LocalPlatform());
 
   EventHandler? _onReceiveNotification;
   EventHandler? _onOpenNotification;
@@ -64,15 +64,28 @@ class JPush {
     print(flutter_log + "_handleMethod:");
 
     switch (call.method) {
-      case "onReceiveNotification":
-        return _onReceiveNotification!(call.arguments.cast<String, dynamic>());
-      case "onOpenNotification":
-        return _onOpenNotification!(call.arguments.cast<String, dynamic>());
-      case "onReceiveMessage":
-        return _onReceiveMessage!(call.arguments.cast<String, dynamic>());
-      case "onReceiveNotificationAuthorization":
-        return _onReceiveNotificationAuthorization!(
-            call.arguments.cast<String, dynamic>());
+      case 'onReceiveNotification':
+        if (_onReceiveNotification != null) {
+          _onReceiveNotification!(call.arguments.cast<String, dynamic>());
+        }
+        return;
+      case 'onOpenNotification':
+        if (_onOpenNotification != null) {
+          _onOpenNotification!(call.arguments.cast<String, dynamic>());
+        }
+        return;
+      case 'onReceiveMessage':
+        if (_onReceiveMessage != null) {
+          _onReceiveMessage!(call.arguments.cast<String, dynamic>());
+        }
+        return;
+      case 'onReceiveNotificationAuthorization':
+        if (_onReceiveNotificationAuthorization != null) {
+          _onReceiveNotificationAuthorization!(
+            call.arguments.cast<String, dynamic>(),
+          );
+        }
+        return;
       default:
         throw new UnsupportedError("Unrecognized Event");
     }
@@ -184,6 +197,23 @@ class JPush {
   }
 
   ///
+  /// 获取 alias.
+  ///
+  /// @param {String} alias
+  ///
+  /// @param {Function} success = ({"alias":String}) => {  }
+  /// @param {Function} fail = ({"errorCode":int}) => {  }
+  ///
+  Future<Map<dynamic, dynamic>> getAlias() async {
+    print(flutter_log + "getAlias:");
+
+    final Map<dynamic, dynamic> result =
+        await _channel.invokeMethod("getAlias");
+
+    return result;
+  }
+
+  ///
   /// 删除原有 alias
   ///
   /// @param {Function} success = ({"alias":String}) => {  }
@@ -204,16 +234,18 @@ class JPush {
   ///
   /// 注意：如果是 Android 手机，目前仅支持华为手机
   ///
-  Future setBadge(int badge) async {
-    print(flutter_log + "setBadge:");
+  Future<bool> setBadge(int badge) async {
+    print(flutter_log + 'setBadge:');
 
-    await _channel.invokeMethod('setBadge', {"badge": badge});
+    final bool? result =
+        await _channel.invokeMethod('setBadge', {'badge': badge});
+    return result ?? false;
   }
 
   ///
   /// 停止接收推送，调用该方法后应用将不再受到推送，如果想要重新收到推送可以调用 resumePush。
   ///
-  Future stopPush() async {
+  Future<void> stopPush() async {
     print(flutter_log + "stopPush:");
 
     await _channel.invokeMethod('stopPush');
@@ -222,7 +254,7 @@ class JPush {
   ///
   /// 恢复推送功能。
   ///
-  Future resumePush() async {
+  Future<void> resumePush() async {
     print(flutter_log + "resumePush:");
 
     await _channel.invokeMethod('resumePush');
@@ -231,7 +263,7 @@ class JPush {
   ///
   /// 清空通知栏上的所有通知。
   ///
-  Future clearAllNotifications() async {
+  Future<void> clearAllNotifications() async {
     print(flutter_log + "clearAllNotifications:");
 
     await _channel.invokeMethod('clearAllNotifications');
@@ -241,7 +273,7 @@ class JPush {
   /// 清空通知栏上某个通知
   /// @param notificationId 通知 id，即：LocalNotification id
   ///
-  void clearNotification({int notificationId = 0}) {
+  void clearNotification({required int notificationId}) {
     print(flutter_log + "clearNotification:");
     _channel.invokeListMethod("clearNotification", notificationId);
   }

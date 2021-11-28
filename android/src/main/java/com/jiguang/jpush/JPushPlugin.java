@@ -477,7 +477,7 @@ public class JPushPlugin implements FlutterPlugin, MethodCallHandler {
         JPushPlugin.instance.channel.invokeMethod("onReceiveMessage", msg);
     }
 
-    static void transmitNotificationOpen(String title, String alert, Map<String, Object> extras) {
+    public static void transmitNotificationOpen(String title, String alert, Map<String, Object> extras) {
         Log.d(TAG, "transmitNotificationOpen " + "title=" + title + "alert=" + alert + "extras=" + extras);
 
         Map<String, Object> notification = new HashMap<>();
